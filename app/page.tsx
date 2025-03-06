@@ -365,7 +365,7 @@ export default function Home() {
           </div>
 
           {selectedPos && (
-            <div className="md:col-span-1">
+            <div className="md:grid-cols-3 col-span-1">
               <PosDetail
                 selectedPos={selectedPos}
                 onEdit={handleSaveEdit}
