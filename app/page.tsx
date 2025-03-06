@@ -355,8 +355,8 @@ export default function Home() {
       )}
 
       {posData && (
-        <div className={`grid md:grid-cols-${selectedPos ? 3 : 1} gap-6`}>
-          <div className={`md:col-span-${selectedPos ? 2 : 3}`}>
+        <div className={`grid md:grid-cols-3 gap-6`}>
+          <div className={selectedPos ? "md:col-span-2" : "md:col-span-3"}>
             <PosTable
               results={posData.results}
               paging={posData.paging}
@@ -365,7 +365,7 @@ export default function Home() {
           </div>
 
           {selectedPos && (
-            <div className="md:grid-cols-3 col-span-1">
+            <div className="md:col-span-1">
               <PosDetail
                 selectedPos={selectedPos}
                 onEdit={handleSaveEdit}
