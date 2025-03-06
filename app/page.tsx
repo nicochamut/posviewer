@@ -355,7 +355,7 @@ export default function Home() {
       )}
 
       {posData && (
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className={`grid md:grid-cols-${selectedPos ? 3 : 1} gap-6`}>
           <div className={`md:col-span-${selectedPos ? 2 : 3}`}>
             <PosTable
               results={posData.results}
