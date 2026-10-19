@@ -29,7 +29,8 @@ export function TokenInput({
         </label>
         <Input
           id="access-token"
-          type="text"
+          type="password"
+          autoComplete="off"
           value={accessToken}
           onChange={(e) => setAccessToken(e.target.value)}
           placeholder="Ingresa tu access_token de Mercado Pago"

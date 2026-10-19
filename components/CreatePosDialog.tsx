@@ -19,10 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus } from "lucide-react";
 import type { CreateFormData } from "@/types";
+import { OPERATING_MODE_OPTIONS } from "@/utils/operating-modes";
+import { validatePosExternalId, validatePosName } from "@/utils/pos-validation";
 
 interface CreatePosDialogProps {
   accessToken: string;
@@ -44,6 +45,18 @@ export function CreatePosDialog({
   setOpen,
 }: CreatePosDialogProps) {
   if (!accessToken) return null;
+
+  const urlBlocked = ["pdv", "standalone"].includes(
+    createFormData.operating_mode
+  );
+  const nameError = createFormData.name
+    ? validatePosName(createFormData.name)
+    : null;
+  const externalIdError = createFormData.external_id
+    ? validatePosExternalId(createFormData.external_id)
+    : null;
+  const missingStore =
+    !createFormData.store_id && !createFormData.external_store_id;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -73,7 +86,7 @@ export function CreatePosDialog({
                 <Label htmlFor="create-name">Nombre del QR</Label>
                 <Input
                   id="create-name"
-                  placeholder="Ej: Surtidor 1"
+                  placeholder="Ej: Surtidor 1 (sin acentos)"
                   value={createFormData.name}
                   onChange={(e) =>
                     setCreateFormData({
@@ -193,7 +206,25 @@ export function CreatePosDialog({
                 }
               />
               <p className="text-xs text-muted-foreground">
-                ID de la tienda obtenido de los QRs existentes.
+                ID de la estación en Mercado Pago, tomado de los QRs existentes.
+                Si queda vacío se usa el External Store ID.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-external-store-id">External Store ID</Label>
+              <Input
+                id="create-external-store-id"
+                value={createFormData.external_store_id}
+                onChange={(e) =>
+                  setCreateFormData({
+                    ...createFormData,
+                    external_store_id: e.target.value,
+                  })
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                external_id con el que se dio de alta la estación (GO + APIES).
               </p>
             </div>
 
@@ -239,21 +270,47 @@ export function CreatePosDialog({
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="create-fixed-amount"
-                checked={createFormData.fixed_amount}
-                onCheckedChange={(checked) =>
+            <div className="space-y-2">
+              <Label htmlFor="create-operating-mode">Modo de operación</Label>
+              <Select
+                value={createFormData.operating_mode || "none"}
+                onValueChange={(value) =>
                   setCreateFormData({
                     ...createFormData,
-                    fixed_amount: checked,
+                    operating_mode: value === "none" ? "" : value,
                   })
                 }
-              />
-              <Label htmlFor="create-fixed-amount">Monto fijo</Label>
+              >
+                <SelectTrigger id="create-operating-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No enviar (default de MP)</SelectItem>
+                  {OPERATING_MODE_OPTIONS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Se copia de los QRs existentes de la estación al consultar.
+                {urlBlocked &&
+                  " En este modo Mercado Pago no acepta URL: el QR se creará sin URL."}
+              </p>
             </div>
           </TabsContent>
         </Tabs>
+
+        {(nameError || externalIdError || missingStore) && (
+          <div className="text-sm text-destructive space-y-1">
+            {nameError && <p>{nameError}</p>}
+            {externalIdError && <p>{externalIdError}</p>}
+            {missingStore && (
+              <p>Falta Store ID o External Store ID de la estación.</p>
+            )}
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
@@ -264,7 +321,10 @@ export function CreatePosDialog({
             disabled={
               createLoading ||
               !createFormData.name ||
-              !createFormData.external_id
+              !createFormData.external_id ||
+              !!nameError ||
+              !!externalIdError ||
+              missingStore
             }
           >
             {createLoading ? "Creando..." : "Crear QR"}

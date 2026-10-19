@@ -29,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Edit,
@@ -42,6 +41,7 @@ import {
 } from "lucide-react";
 import type { PosResult, EditFormData } from "@/types";
 import { formatDate } from "@/utils/date-formatter";
+import { OPERATING_MODE_OPTIONS } from "@/utils/operating-modes";
 
 interface PosDetailProps {
   selectedPos: PosResult;
@@ -69,12 +69,14 @@ export function PosDetail({
   // Añadir showJson al estado
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [showJson, setShowJson] = useState(false);
+  const qr = selectedPos.qr_response;
 
   const handleEditClick = () => {
     setEditFormData({
       name: selectedPos.name,
-      fixed_amount: selectedPos.fixed_amount,
-      category: selectedPos.category,
+      category: selectedPos.config?.qr?.category,
+      operating_mode: selectedPos.config?.qr?.operating_mode ?? "",
+      url: selectedPos.config?.qr?.url ?? "",
     });
     setIsEditing(true);
   };
@@ -162,16 +164,6 @@ export function PosDetail({
                 }
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="edit-fixed-amount"
-                checked={editFormData.fixed_amount}
-                onCheckedChange={(checked) =>
-                  setEditFormData({ ...editFormData, fixed_amount: checked })
-                }
-              />
-              <Label htmlFor="edit-fixed-amount">Monto fijo</Label>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-category">Categoría</Label>
               <Select
@@ -194,6 +186,42 @@ export function PosDetail({
                   <SelectItem value="581000">Restaurante (581000)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-operating-mode">Modo de operación</Label>
+              <Select
+                value={editFormData.operating_mode || undefined}
+                onValueChange={(value) =>
+                  setEditFormData({ ...editFormData, operating_mode: value })
+                }
+              >
+                <SelectTrigger id="edit-operating-mode">
+                  <SelectValue placeholder="Sin definir" />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPERATING_MODE_OPTIONS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-url">URL</Label>
+              <Input
+                id="edit-url"
+                value={editFormData.url}
+                disabled={["pdv", "standalone"].includes(editFormData.operating_mode)}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, url: e.target.value })
+                }
+              />
+              {["pdv", "standalone"].includes(editFormData.operating_mode) && (
+                <p className="text-xs text-muted-foreground">
+                  En este modo Mercado Pago no permite URL; se enviará vacía.
+                </p>
+              )}
             </div>
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={handleCancelEdit}>
@@ -226,14 +254,19 @@ export function PosDetail({
                 <div className="text-muted-foreground">External ID:</div>
                 <div>{selectedPos.external_id}</div>
 
-                <div className="text-muted-foreground">Monto fijo:</div>
+                <div className="text-muted-foreground">Estado:</div>
                 <div>
                   <Badge
-                    variant={selectedPos.fixed_amount ? "default" : "outline"}
+                    variant={
+                      selectedPos.status === "inactive" ? "outline" : "default"
+                    }
                   >
-                    {selectedPos.fixed_amount ? "Sí" : "No"}
+                    {selectedPos.status ?? "—"}
                   </Badge>
                 </div>
+
+                <div className="text-muted-foreground">Modo:</div>
+                <div>{selectedPos.config?.qr?.operating_mode ?? "—"}</div>
 
                 {selectedPos.store_id && (
                   <>
@@ -242,10 +275,26 @@ export function PosDetail({
                   </>
                 )}
 
-                {selectedPos.category && (
+                {selectedPos.external_store_id && (
+                  <>
+                    <div className="text-muted-foreground">
+                      External Store ID:
+                    </div>
+                    <div>{selectedPos.external_store_id}</div>
+                  </>
+                )}
+
+                {selectedPos.config?.qr?.category && (
                   <>
                     <div className="text-muted-foreground">Categoría:</div>
-                    <div>{selectedPos.category}</div>
+                    <div>{selectedPos.config.qr.category}</div>
+                  </>
+                )}
+
+                {selectedPos.config?.qr?.url && (
+                  <>
+                    <div className="text-muted-foreground">URL:</div>
+                    <div className="break-all">{selectedPos.config.qr.url}</div>
                   </>
                 )}
 
@@ -257,12 +306,12 @@ export function PosDetail({
               </div>
             </div>
 
-            {selectedPos.qr && (
+            {qr && (
               <div>
                 <h3 className="font-medium mb-2">Código QR</h3>
                 <div className="flex justify-center mb-2">
                   <img
-                    src={selectedPos.qr.image || "/placeholder.svg"}
+                    src={qr.image || "/placeholder.svg"}
                     alt={`QR para ${selectedPos.name}`}
                     className="max-w-full h-auto border rounded bg-white p-2"
                   />
@@ -271,7 +320,7 @@ export function PosDetail({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(selectedPos.qr.image, "_blank")}
+                    onClick={() => window.open(qr.image, "_blank")}
                   >
                     Ver imagen QR
                   </Button>
@@ -279,7 +328,7 @@ export function PosDetail({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      window.open(selectedPos.qr.template_image, "_blank")
+                      window.open(qr.template_image, "_blank")
                     }
                   >
                     Ver plantilla (imagen)
@@ -288,7 +337,7 @@ export function PosDetail({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      window.open(selectedPos.qr.template_document, "_blank")
+                      window.open(qr.template_document, "_blank")
                     }
                   >
                     Ver plantilla (PDF)

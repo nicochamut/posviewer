@@ -1,8 +1,32 @@
-import type { PosResponse, PosResult, StoreFormData, StoreResponse, CreateFormData, EditFormData } from "@/types"
+import type { PosResponse, PosResult, PosPayload, StoreFormData, StoreResponse } from "@/types"
+
+// crypto.randomUUID solo existe en contextos seguros (https / localhost)
+function newIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID()
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
+// El token viaja siempre en el header Authorization, nunca en la URL
+function authHeaders(accessToken: string, withIdempotency = false): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken.trim()}`,
+  }
+  if (withIdempotency) headers["X-Idempotency-Key"] = newIdempotencyKey()
+  return headers
+}
 
 // Función para manejar errores de la API
 const handleApiError = async (response: Response) => {
-  const errorData = await response.json()
+  let errorData: any = {}
+  try {
+    errorData = await response.json()
+  } catch {
+    // respuesta sin body
+  }
   throw new Error(
     `Error: ${response.status} - ${response.statusText}${
       errorData.error || errorData.details ? `\nDetalle: ${JSON.stringify(errorData, null, 2)}` : ""
@@ -10,9 +34,9 @@ const handleApiError = async (response: Response) => {
   )
 }
 
-// Obtener datos de POS
+// Obtener todos los QRs (POS) de la cuenta
 export async function fetchPosData(accessToken: string): Promise<PosResponse> {
-  const response = await fetch(`/api/mercadopago?access_token=${encodeURIComponent(accessToken)}`)
+  const response = await fetch(`/api/mercadopago`, { headers: authHeaders(accessToken) })
 
   if (!response.ok) {
     await handleApiError(response)
@@ -21,17 +45,12 @@ export async function fetchPosData(accessToken: string): Promise<PosResponse> {
   return await response.json()
 }
 
-// Crear un nuevo POS
-export async function createPos(
-  accessToken: string,
-  createData: Omit<CreateFormData, "urlSuffix" | "apiCode" | "locationType" | "locationNumber" | "baseUrl">,
-): Promise<PosResult> {
-  const response = await fetch(`/api/mercadopago?access_token=${encodeURIComponent(accessToken)}`, {
+// Crear un nuevo QR (POS)
+export async function createPos(accessToken: string, payload: PosPayload): Promise<PosResult> {
+  const response = await fetch(`/api/mercadopago`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(createData),
+    headers: authHeaders(accessToken, true),
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {
@@ -41,18 +60,12 @@ export async function createPos(
   return await response.json()
 }
 
-// Actualizar un POS existente
-export async function updatePos(
-  accessToken: string,
-  posId: number,
-  updateData: Partial<EditFormData>,
-): Promise<PosResult> {
-  const response = await fetch(`/api/mercadopago/${posId}?access_token=${encodeURIComponent(accessToken)}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(updateData),
+// Actualizar un QR (POS) existente — solo los campos que cambian
+export async function updatePos(accessToken: string, posId: number, payload: PosPayload): Promise<PosResult> {
+  const response = await fetch(`/api/mercadopago/${posId}`, {
+    method: "PATCH",
+    headers: authHeaders(accessToken, true),
+    body: JSON.stringify(payload),
   })
 
   if (!response.ok) {
@@ -62,10 +75,11 @@ export async function updatePos(
   return await response.json()
 }
 
-// Eliminar un POS
+// Eliminar un QR (POS)
 export async function deletePos(accessToken: string, posId: number): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/mercadopago/${posId}?access_token=${encodeURIComponent(accessToken)}`, {
+  const response = await fetch(`/api/mercadopago/${posId}`, {
     method: "DELETE",
+    headers: authHeaders(accessToken, true),
   })
 
   if (!response.ok) {
@@ -75,7 +89,7 @@ export async function deletePos(accessToken: string, posId: number): Promise<{ s
   return { success: true }
 }
 
-// Crear un nuevo Store
+// Dar de alta una estación (Store)
 export async function createStore(accessToken: string, storeData: StoreFormData): Promise<StoreResponse> {
   // Convertir latitude y longitude a números
   const formattedStoreData = {
@@ -87,11 +101,9 @@ export async function createStore(accessToken: string, storeData: StoreFormData)
     },
   }
 
-  const response = await fetch(`/api/mercadopago/store?access_token=${encodeURIComponent(accessToken)}`, {
+  const response = await fetch(`/api/mercadopago/store`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: authHeaders(accessToken),
     body: JSON.stringify(formattedStoreData),
   })
 
@@ -101,4 +113,3 @@ export async function createStore(accessToken: string, storeData: StoreFormData)
 
   return await response.json()
 }
-
