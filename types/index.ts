@@ -105,3 +105,17 @@ export interface StoreResponse {
   [key: string]: any
 }
 
+
+// Estación de pagos.grupooleum.com.ar (sin tokens)
+export interface Station {
+  id: number
+  external_id: string
+  description: string
+  flag: string | null
+  active: boolean
+  collector_id: string | null
+  store_id: string | null
+  url: string | null
+  last_transaction: string | null
+  has_token: boolean
+}

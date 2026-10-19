@@ -1,4 +1,4 @@
-import type { PosResponse, PosResult, PosPayload, StoreFormData, StoreResponse } from "@/types"
+import type { PosResponse, PosResult, PosPayload, Station, StoreFormData, StoreResponse } from "@/types"
 
 // crypto.randomUUID solo existe en contextos seguros (https / localhost)
 function newIdempotencyKey(): string {
@@ -9,23 +9,32 @@ function newIdempotencyKey(): string {
   })
 }
 
-// El token viaja siempre en el header Authorization, nunca en la URL
-function authHeaders(accessToken: string, withIdempotency = false): HeadersInit {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken.trim()}`,
-  }
+// El token de Mercado Pago nunca pasa por el navegador: el servidor lo resuelve
+// a partir de la sesión de pagos y el id de la estación.
+function jsonHeaders(withIdempotency = false): HeadersInit {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (withIdempotency) headers["X-Idempotency-Key"] = newIdempotencyKey()
   return headers
 }
 
-// Función para manejar errores de la API
+// Si la sesión venció, volver al login
+function redirectToLogin() {
+  if (typeof window !== "undefined") {
+    const next = window.location.pathname
+    window.location.href = next && next !== "/" ? `/login?next=${encodeURIComponent(next)}` : "/login"
+  }
+}
+
 const handleApiError = async (response: Response) => {
   let errorData: any = {}
   try {
     errorData = await response.json()
   } catch {
     // respuesta sin body
+  }
+  if (response.status === 401) {
+    redirectToLogin()
+    throw new Error("Sesión vencida, volvé a ingresar")
   }
   throw new Error(
     `Error: ${response.status} - ${response.statusText}${
@@ -34,64 +43,68 @@ const handleApiError = async (response: Response) => {
   )
 }
 
-// Obtener todos los QRs (POS) de la cuenta
-export async function fetchPosData(accessToken: string): Promise<PosResponse> {
-  const response = await fetch(`/api/mercadopago`, { headers: authHeaders(accessToken) })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return await response.json()
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, { credentials: "same-origin", ...init })
+  if (!response.ok) await handleApiError(response)
+  return (await response.json()) as T
 }
 
-// Crear un nuevo QR (POS)
-export async function createPos(accessToken: string, payload: PosPayload): Promise<PosResult> {
-  const response = await fetch(`/api/mercadopago`, {
+// ----- Sesión -----
+export async function login(username: string, password: string): Promise<{ ok: boolean; user: string }> {
+  const response = await fetch("/api/auth/login", {
     method: "POST",
-    headers: authHeaders(accessToken, true),
-    body: JSON.stringify(payload),
+    headers: jsonHeaders(),
+    body: JSON.stringify({ username, password }),
   })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return await response.json()
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.error || "No se pudo ingresar")
+  return data
 }
 
-// Actualizar un QR (POS) existente — solo los campos que cambian
-export async function updatePos(accessToken: string, posId: number, payload: PosPayload): Promise<PosResult> {
-  const response = await fetch(`/api/mercadopago/${posId}`, {
+export async function logout(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" })
+  window.location.href = "/login"
+}
+
+// ----- Estaciones -----
+export async function fetchStations(refresh = false): Promise<{ user: string; data: Station[] }> {
+  return request(`/api/stations${refresh ? "?refresh=1" : ""}`)
+}
+
+export async function fetchStation(stationId: number): Promise<Station> {
+  return request(`/api/stations/${stationId}`)
+}
+
+// ----- QRs (POS) de una estación -----
+export async function fetchPosData(stationId: number): Promise<PosResponse> {
+  return request(`/api/stations/${stationId}/pos`)
+}
+
+export async function createPos(stationId: number, payload: PosPayload): Promise<PosResult> {
+  return request(`/api/stations/${stationId}/pos`, {
+    method: "POST",
+    headers: jsonHeaders(true),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updatePos(stationId: number, posId: number, payload: PosPayload): Promise<PosResult> {
+  return request(`/api/stations/${stationId}/pos/${posId}`, {
     method: "PATCH",
-    headers: authHeaders(accessToken, true),
+    headers: jsonHeaders(true),
     body: JSON.stringify(payload),
   })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return await response.json()
 }
 
-// Eliminar un QR (POS)
-export async function deletePos(accessToken: string, posId: number): Promise<{ success: boolean }> {
-  const response = await fetch(`/api/mercadopago/${posId}`, {
+export async function deletePos(stationId: number, posId: number): Promise<{ success: boolean }> {
+  return request(`/api/stations/${stationId}/pos/${posId}`, {
     method: "DELETE",
-    headers: authHeaders(accessToken, true),
+    headers: jsonHeaders(true),
   })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return { success: true }
 }
 
-// Dar de alta una estación (Store)
-export async function createStore(accessToken: string, storeData: StoreFormData): Promise<StoreResponse> {
-  // Convertir latitude y longitude a números
+// Alta de la estación (sucursal) en Mercado Pago
+export async function createStore(stationId: number, storeData: StoreFormData): Promise<StoreResponse> {
   const formattedStoreData = {
     ...storeData,
     location: {
@@ -101,15 +114,9 @@ export async function createStore(accessToken: string, storeData: StoreFormData)
     },
   }
 
-  const response = await fetch(`/api/mercadopago/store`, {
+  return request(`/api/stations/${stationId}/store`, {
     method: "POST",
-    headers: authHeaders(accessToken),
+    headers: jsonHeaders(),
     body: JSON.stringify(formattedStoreData),
   })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return await response.json()
 }

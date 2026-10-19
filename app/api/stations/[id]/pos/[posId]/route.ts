@@ -2,26 +2,23 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   MODES_WITHOUT_URL,
   OPERATING_MODES,
-  getAccessToken,
   idempotencyKeyFrom,
   internalErrorResponse,
-  missingTokenResponse,
   mpErrorResponse,
   mpFetch,
   validatePosExternalId,
   validatePosName,
 } from "@/lib/mercadopago"
+import { withStation } from "@/lib/station-auth"
 
 function validPosId(id: string) {
   return /^\d+$/.test(id)
 }
 
 // Modifica un QR (POS) con PATCH /v2/pos/{pos_id}. Solo se envían los campos que cambian.
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const token = getAccessToken(request)
-  if (!token) return missingTokenResponse()
-  if (!validPosId(params.id)) return NextResponse.json({ error: "pos_id inválido" }, { status: 400 })
-
+export async function PATCH(request: NextRequest, { params }: { params: { id: string; posId: string } }) {
+  if (!validPosId(params.posId)) return NextResponse.json({ error: "pos_id inválido" }, { status: 400 })
+  return withStation(params.id, async (token) => {
   try {
     const body = await request.json()
     const payload: Record<string, unknown> = {}
@@ -65,7 +62,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "No hay cambios para enviar" }, { status: 400 })
     }
 
-    const res = await mpFetch(`/v2/pos/${params.id}`, token, {
+    const res = await mpFetch(`/v2/pos/${params.posId}`, token, {
       method: "PATCH",
       body: payload,
       idempotencyKey: idempotencyKeyFrom(request),
@@ -76,16 +73,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   } catch (error) {
     return internalErrorResponse("Failed to update POS data", error)
   }
+  })
 }
 
 // Elimina un QR (POS) con DELETE /v2/pos/{pos_id}
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  const token = getAccessToken(request)
-  if (!token) return missingTokenResponse()
-  if (!validPosId(params.id)) return NextResponse.json({ error: "pos_id inválido" }, { status: 400 })
-
+export async function DELETE(request: NextRequest, { params }: { params: { id: string; posId: string } }) {
+  if (!validPosId(params.posId)) return NextResponse.json({ error: "pos_id inválido" }, { status: 400 })
+  return withStation(params.id, async (token) => {
   try {
-    const res = await mpFetch(`/v2/pos/${params.id}`, token, {
+    const res = await mpFetch(`/v2/pos/${params.posId}`, token, {
       method: "DELETE",
       idempotencyKey: idempotencyKeyFrom(request),
     })
@@ -95,4 +91,5 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   } catch (error) {
     return internalErrorResponse("Failed to delete POS", error)
   }
+  })
 }

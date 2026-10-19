@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "POS viewer",
-  description: "Aplicación para consultar información de POS de Mercado Pago",
+  title: "QRs Mercado Pago",
+  description: "Alta de estaciones y gestión de QRs de Mercado Pago",
 };
 
 export default function RootLayout({
