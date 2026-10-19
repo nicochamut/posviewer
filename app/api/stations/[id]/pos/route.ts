@@ -2,24 +2,21 @@ import { type NextRequest, NextResponse } from "next/server"
 import {
   MODES_WITHOUT_URL,
   OPERATING_MODES,
-  getAccessToken,
   idempotencyKeyFrom,
   internalErrorResponse,
-  missingTokenResponse,
   mpErrorResponse,
   mpFetch,
   validatePosExternalId,
   validatePosName,
 } from "@/lib/mercadopago"
+import { withStation } from "@/lib/station-auth"
 
 const PAGE_SIZE = 30 // máximo permitido por GET /v2/pos
 const MAX_PAGES = 50 // tope de seguridad (1500 QRs)
 
 // Lista todos los QRs (POS) de la cuenta, recorriendo todas las páginas de /v2/pos
-export async function GET(request: NextRequest) {
-  const token = getAccessToken(request)
-  if (!token) return missingTokenResponse()
-
+export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+  return withStation(params.id, async (token) => {
   try {
     const all: any[] = []
     let total = 0
@@ -43,13 +40,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse("Failed to fetch data from Mercado Pago API", error)
   }
+  })
 }
 
 // Crea un QR (POS) con POST /v2/pos
-export async function POST(request: NextRequest) {
-  const token = getAccessToken(request)
-  if (!token) return missingTokenResponse()
-
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  return withStation(params.id, async (token) => {
   try {
     const body = await request.json()
     const name: string = (body.name ?? "").toString()
@@ -105,4 +101,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse("Failed to create POS data", error)
   }
+  })
 }

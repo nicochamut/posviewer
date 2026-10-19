@@ -1,17 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {
-  getAccessToken,
-  internalErrorResponse,
-  missingTokenResponse,
-  mpErrorResponse,
-  mpFetch,
-} from "@/lib/mercadopago"
+import { internalErrorResponse, mpErrorResponse, mpFetch } from "@/lib/mercadopago"
+import { withStation } from "@/lib/station-auth"
 
 // Da de alta una estación (sucursal) con POST /users/{user_id}/stores
-export async function POST(request: NextRequest) {
-  const token = getAccessToken(request)
-  if (!token) return missingTokenResponse()
-
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  return withStation(params.id, async (token) => {
   try {
     const body = await request.json()
 
@@ -54,4 +47,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return internalErrorResponse("Failed to create Store data", error)
   }
+  })
 }

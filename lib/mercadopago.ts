@@ -8,17 +8,6 @@ export const OPERATING_MODES = ["unattended", "self_service", "pdv", "standalone
 // En estos modos MP exige que config.qr.url sea nula
 export const MODES_WITHOUT_URL = ["pdv", "standalone"]
 
-// El token llega desde el front en el header Authorization (nunca en la URL)
-export function getAccessToken(request: NextRequest): string | null {
-  const auth = request.headers.get("authorization") || ""
-  const match = auth.match(/^Bearer\s+(.+)$/i)
-  return match ? match[1].trim() : null
-}
-
-export function missingTokenResponse() {
-  return NextResponse.json({ error: "Access token is required" }, { status: 401 })
-}
-
 interface MpFetchOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE"
   body?: unknown

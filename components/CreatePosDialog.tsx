@@ -26,7 +26,7 @@ import { OPERATING_MODE_OPTIONS } from "@/utils/operating-modes";
 import { validatePosExternalId, validatePosName } from "@/utils/pos-validation";
 
 interface CreatePosDialogProps {
-  accessToken: string;
+  enabled: boolean;
   createFormData: CreateFormData;
   setCreateFormData: (data: CreateFormData) => void;
   onCreatePos: () => void;
@@ -36,7 +36,7 @@ interface CreatePosDialogProps {
 }
 
 export function CreatePosDialog({
-  accessToken,
+  enabled,
   createFormData,
   setCreateFormData,
   onCreatePos,
@@ -44,7 +44,7 @@ export function CreatePosDialog({
   open,
   setOpen,
 }: CreatePosDialogProps) {
-  if (!accessToken) return null;
+  if (!enabled) return null;
 
   const urlBlocked = ["pdv", "standalone"].includes(
     createFormData.operating_mode
