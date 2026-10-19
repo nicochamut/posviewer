@@ -1,23 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
+import {
+  getAccessToken,
+  internalErrorResponse,
+  missingTokenResponse,
+  mpErrorResponse,
+  mpFetch,
+} from "@/lib/mercadopago"
 
+// Da de alta una estación (sucursal) con POST /users/{user_id}/stores
 export async function POST(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams
-  const accessToken = searchParams.get("access_token")
-
-  if (!accessToken) {
-    return NextResponse.json({ error: "Access token is required" }, { status: 400 })
-  }
+  const token = getAccessToken(request)
+  if (!token) return missingTokenResponse()
 
   try {
     const body = await request.json()
-
-    // Extraer el collector_id del access token (está después del último guión)
-    const tokenParts = accessToken.split("-")
-    const collectorId = tokenParts[tokenParts.length - 1]
-
-    if (!collectorId) {
-      return NextResponse.json({ error: "Could not extract collector ID from access token" }, { status: 400 })
-    }
 
     // Validar que los campos requeridos estén presentes
     const requiredFields = ["name", "external_id", "location"]
@@ -27,7 +23,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Validar campos de location
     const requiredLocationFields = [
       "zip_code",
       "street_number",
@@ -38,32 +33,25 @@ export async function POST(request: NextRequest) {
       "longitude",
     ]
     for (const field of requiredLocationFields) {
-      if (!body.location[field]) {
+      const value = body.location[field]
+      if (value === undefined || value === null || value === "" || Number.isNaN(value)) {
         return NextResponse.json({ error: `Location field '${field}' is required` }, { status: 400 })
       }
     }
 
-    const response = await fetch(
-      `https://api.mercadopago.com/users/${collectorId}/stores?access_token=${accessToken}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      },
-    )
-
-    const data = await response.json()
-
-    if (!response.ok) {
-      return NextResponse.json({ error: "Error from Mercado Pago API", details: data }, { status: response.status })
+    // El user_id (collector) se obtiene de la cuenta del token, no partiendo el string del token
+    const me = await mpFetch("/users/me", token)
+    if (!me.ok) return mpErrorResponse(me.status, me.data)
+    const userId = me.data?.id
+    if (!userId) {
+      return NextResponse.json({ error: "No se pudo obtener el user_id de la cuenta" }, { status: 400 })
     }
 
-    return NextResponse.json(data)
+    const res = await mpFetch(`/users/${userId}/stores`, token, { method: "POST", body })
+    if (!res.ok) return mpErrorResponse(res.status, res.data)
+
+    return NextResponse.json(res.data)
   } catch (error) {
-    console.error("Error creating Mercado Pago Store:", error)
-    return NextResponse.json({ error: "Failed to create Store data", details: error }, { status: 500 })
+    return internalErrorResponse("Failed to create Store data", error)
   }
 }
-

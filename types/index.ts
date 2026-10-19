@@ -1,24 +1,32 @@
-// Interfaces para los datos de la API
-export interface PosQr {
+// Interfaces para los datos de la API (/v2/pos)
+export type OperatingMode = "unattended" | "self_service" | "pdv" | "standalone"
+
+export interface PosQrResponse {
+  uuid?: string
   image: string
   template_document: string
   template_image: string
+  qr_code?: string
+}
+
+export interface PosQrConfig {
+  operating_mode?: OperatingMode | string
+  category?: number
+  url?: string | null
 }
 
 export interface PosResult {
   id: number
   user_id: number
   name: string
-  fixed_amount: boolean
+  status?: "active" | "inactive" | string
   store_id?: string
+  external_store_id?: string
   external_id: string
-  qr: PosQr
+  config?: { qr?: PosQrConfig }
+  qr_response?: PosQrResponse
   date_created: string
   date_last_updated: string
-  external_store_id?: string
-  brand_id?: number
-  url?: string
-  category?: number
 }
 
 export interface PosPaging {
@@ -29,21 +37,32 @@ export interface PosPaging {
 
 export interface PosResponse {
   paging: PosPaging
-  results: PosResult[]
+  data: PosResult[]
+}
+
+// Payload que el front manda para crear/editar un QR
+export interface PosPayload {
+  name?: string
+  store_id?: string
+  external_store_id?: string
+  external_id?: string
+  config?: { qr?: PosQrConfig }
 }
 
 // Interfaces para los formularios
 export interface EditFormData {
   name: string
-  fixed_amount: boolean
   category?: number
+  operating_mode: string // "" = sin definir
+  url: string
 }
 
 export interface CreateFormData {
   name: string
-  fixed_amount: boolean
   category: number
+  operating_mode: string // "" = no enviar
   store_id: string
+  external_store_id: string
   external_id: string
   url: string
   urlSuffix: string

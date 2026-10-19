@@ -17,6 +17,8 @@ import { useStoreFormData } from "@/hooks/useStoreFormData";
 import type {
   PosResponse,
   PosResult,
+  PosPayload,
+  PosQrConfig,
   EditFormData,
   StoreResponse,
 } from "@/types";
@@ -41,8 +43,9 @@ export default function Home() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<EditFormData>({
     name: "",
-    fixed_amount: false,
     category: undefined,
+    operating_mode: "",
+    url: "",
   });
 
   // Estado para creación de POS
@@ -77,17 +80,19 @@ export default function Home() {
       setSelectedPos(null);
 
       // Si hay resultados, extraer el store_id y otros datos comunes para el formulario de creación
-      if (data.results && data.results.length > 0) {
-        const firstResult = data.results[0];
+      if (data.data && data.data.length > 0) {
+        const firstResult = data.data[0];
+        const firstUrl = firstResult.config?.qr?.url;
 
         // Extraer el apiCode de la URL o external_id
         let apiCode = "";
-        if (firstResult.url) {
-          const urlParts = firstResult.url.split("/");
+        if (firstUrl) {
+          const urlParts = firstUrl.split("/");
           if (urlParts.length > 0) {
             apiCode = urlParts[urlParts.length - 2] || "";
           }
-        } else if (firstResult.external_id) {
+        }
+        if (!apiCode && firstResult.external_id) {
           // Intentar extraer el código de API del external_id (formato: GO1161pump1)
           const match = firstResult.external_id.match(/GO(\d+)/);
           if (match && match[1]) {
@@ -95,10 +100,16 @@ export default function Home() {
           }
         }
 
+        // Copiar el modo de operación de los QRs existentes para que los nuevos queden igual
+        const existingMode =
+          data.data.find((p) => p.config?.qr?.operating_mode)?.config?.qr
+            ?.operating_mode || "";
+
         setCreateFormData((prev) => ({
           ...prev,
           store_id: firstResult.store_id || "",
           apiCode: apiCode,
+          operating_mode: existingMode,
         }));
 
         // Extraer el apiCode para el formulario de Store
@@ -139,19 +150,32 @@ export default function Home() {
     setEditSuccess(null);
 
     try {
-      const updateData: Partial<EditFormData> = {};
+      const updateData: PosPayload = {};
+      const currentQr = selectedPos.config?.qr ?? {};
+      const qrChanges: PosQrConfig = {};
 
-      // Solo incluir campos que han cambiado
+      // Solo incluir campos que han cambiado (PATCH)
       if (formData.name !== selectedPos.name) {
         updateData.name = formData.name;
       }
 
-      if (formData.fixed_amount !== selectedPos.fixed_amount) {
-        updateData.fixed_amount = formData.fixed_amount;
+      if (formData.category && formData.category !== currentQr.category) {
+        qrChanges.category = formData.category;
       }
 
-      if (formData.category !== selectedPos.category && formData.category) {
-        updateData.category = formData.category;
+      if (
+        formData.operating_mode &&
+        formData.operating_mode !== (currentQr.operating_mode ?? "")
+      ) {
+        qrChanges.operating_mode = formData.operating_mode;
+      }
+
+      if (formData.url !== (currentQr.url ?? "")) {
+        qrChanges.url = formData.url || null;
+      }
+
+      if (Object.keys(qrChanges).length > 0) {
+        updateData.config = { qr: qrChanges };
       }
 
       // Si no hay cambios, no hacer la petición
@@ -169,18 +193,18 @@ export default function Home() {
 
       // Actualizar la lista de resultados
       if (posData) {
-        const updatedResults = posData.results.map((pos) =>
-          pos.id === updatedPos.id ? updatedPos : pos
+        const updatedResults = posData.data.map((pos) =>
+          pos.id === updatedPos.id ? { ...pos, ...updatedPos } : pos
         );
 
         setPosData({
           ...posData,
-          results: updatedResults,
+          data: updatedResults,
         });
       }
 
-      // Actualizar el POS seleccionado
-      setSelectedPos(updatedPos);
+      // Actualizar el POS seleccionado (PATCH puede no devolver todos los campos)
+      setSelectedPos({ ...selectedPos, ...updatedPos });
       setEditSuccess("QR actualizado correctamente");
       setIsEditing(false);
     } catch (err) {
@@ -204,13 +228,13 @@ export default function Home() {
 
       // Actualizar la lista de resultados
       if (posData) {
-        const updatedResults = posData.results.filter(
+        const updatedResults = posData.data.filter(
           (pos) => pos.id !== selectedPos.id
         );
 
         setPosData({
           ...posData,
-          results: updatedResults,
+          data: updatedResults,
           paging: {
             ...posData.paging,
             total: posData.paging.total - 1,
@@ -235,14 +259,25 @@ export default function Home() {
 
     try {
       // Preparar los datos para la creación
-      const createData = {
+      const mode = createFormData.operating_mode;
+      const qr: PosQrConfig = { category: createFormData.category };
+      if (mode) qr.operating_mode = mode;
+      // En pdv/standalone MP no acepta url
+      if (createFormData.url && mode !== "pdv" && mode !== "standalone") {
+        qr.url = createFormData.url;
+      }
+
+      const createData: PosPayload = {
         name: createFormData.name,
-        fixed_amount: createFormData.fixed_amount,
-        category: createFormData.category,
-        store_id: createFormData.store_id,
         external_id: createFormData.external_id,
-        url: createFormData.url,
+        config: { qr },
       };
+      // Se usa el store_id de MP si se conoce; si no, el external_id de la estación (GO{APIES})
+      if (createFormData.store_id) {
+        createData.store_id = createFormData.store_id;
+      } else {
+        createData.external_store_id = createFormData.external_store_id;
+      }
 
       const newPos = await createPos(accessToken, createData);
 
@@ -250,7 +285,7 @@ export default function Home() {
       if (posData) {
         setPosData({
           ...posData,
-          results: [newPos, ...posData.results],
+          data: [newPos, ...posData.data],
           paging: {
             ...posData.paging,
             total: posData.paging.total + 1,
@@ -306,7 +341,7 @@ export default function Home() {
   return (
     <main className="container mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold mb-6 text-center text-primary-foreground">
-        Consulta de POS de Mercado Pago
+        QRs de Mercado Pago
       </h1>
 
       <TokenInput
@@ -358,7 +393,7 @@ export default function Home() {
         <div className={`grid md:grid-cols-3 gap-6`}>
           <div className={selectedPos ? "md:col-span-2" : "md:col-span-3"}>
             <PosTable
-              results={posData.results}
+              results={posData.data}
               paging={posData.paging}
               onSelectPos={setSelectedPos}
             />

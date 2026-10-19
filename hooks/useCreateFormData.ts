@@ -5,9 +5,10 @@ import type { CreateFormData } from "@/types"
 
 const initialCreateFormData: CreateFormData = {
   name: "",
-  fixed_amount: true,
   category: 473000,
+  operating_mode: "",
   store_id: "",
+  external_store_id: "",
   external_id: "",
   url: "",
   urlSuffix: "",
@@ -20,25 +21,31 @@ const initialCreateFormData: CreateFormData = {
 export function useCreateFormData() {
   const [createFormData, setCreateFormData] = useState<CreateFormData>(initialCreateFormData)
 
-  // Actualizar external_id y url cuando cambian los campos relacionados
+  // Actualizar external_id, external_store_id y url cuando cambian los campos relacionados
   useEffect(() => {
     const { apiCode, locationType, locationNumber, baseUrl } = createFormData
 
     if (apiCode && locationType && locationNumber && baseUrl) {
       const newExternalId = `GO${apiCode}${locationType}${locationNumber}`
+      const newExternalStoreId = `GO${apiCode}`
       const newUrlSuffix = `${apiCode}/${locationType}${locationNumber}`
       const newUrl = `${baseUrl}${newUrlSuffix}`
 
-      // Usar una función de actualización para evitar dependencias circulares
       setCreateFormData((prev) => {
         // Solo actualizar si los valores han cambiado para evitar actualizaciones innecesarias
-        if (prev.external_id === newExternalId && prev.urlSuffix === newUrlSuffix && prev.url === newUrl) {
-          return prev // No hay cambios, devolver el estado anterior
+        if (
+          prev.external_id === newExternalId &&
+          prev.external_store_id === newExternalStoreId &&
+          prev.urlSuffix === newUrlSuffix &&
+          prev.url === newUrl
+        ) {
+          return prev
         }
 
         return {
           ...prev,
           external_id: newExternalId,
+          external_store_id: newExternalStoreId,
           urlSuffix: newUrlSuffix,
           url: newUrl,
         }
@@ -65,4 +72,3 @@ export function useCreateFormData() {
     resetCreateFormData,
   }
 }
-

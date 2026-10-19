@@ -44,6 +44,7 @@ export function PosTable({ results, paging, onSelectPos }: PosTableProps) {
                 <TableHead>ID</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>External ID</TableHead>
+                <TableHead>Estado</TableHead>
                 <TableHead>Fecha Creación</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -54,6 +55,7 @@ export function PosTable({ results, paging, onSelectPos }: PosTableProps) {
                   <TableCell>{pos.id}</TableCell>
                   <TableCell>{pos.name}</TableCell>
                   <TableCell>{pos.external_id}</TableCell>
+                  <TableCell>{pos.status ?? "—"}</TableCell>
                   <TableCell>{formatDate(pos.date_created)}</TableCell>
                   <TableCell>
                     <Button
