@@ -119,3 +119,37 @@ export interface Station {
   last_transaction: string | null
   has_token: boolean
 }
+
+// Consulta por access token (/api/token/info)
+export interface MpAccount {
+  id: number
+  nickname: string | null
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  site_id: string | null
+  company: string | null
+}
+
+export interface MpStore {
+  id: string | number
+  name: string
+  external_id?: string
+  date_creation?: string
+  location?: {
+    address_line?: string
+    reference?: string
+    latitude?: number
+    longitude?: number
+    city?: string
+    zip_code?: string
+  }
+  [key: string]: any
+}
+
+export interface TokenInfo {
+  account: MpAccount
+  token_env: "production" | "test"
+  stores: MpStore[]
+  pos: PosResponse
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { RefreshCw, Search } from "lucide-react"
+import { KeyRound, PlusCircle, RefreshCw, Search } from "lucide-react"
 import { AppHeader } from "@/components/AppHeader"
 import { ErrorAlert } from "@/components/ErrorAlert"
 import { Badge } from "@/components/ui/badge"
@@ -64,6 +64,35 @@ export default function StationsPage() {
     <>
       <AppHeader user={user} />
       <main className="container mx-auto px-4 pb-8">
+        <div className="grid gap-4 sm:grid-cols-2 mb-6">
+          <Link href="/alta" className="group">
+            <Card className="h-full transition-colors group-hover:border-primary">
+              <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+                <PlusCircle className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                <div>
+                  <CardTitle className="text-base">Alta de estación nueva</CardTitle>
+                  <CardDescription>
+                    Con el access token del cliente: crea la sucursal (Store ID) y los QRs v2 de surtidores y shop.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          </Link>
+          <Link href="/consulta" className="group">
+            <Card className="h-full transition-colors group-hover:border-primary">
+              <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+                <KeyRound className="h-5 w-5 mt-0.5 text-primary shrink-0" />
+                <div>
+                  <CardTitle className="text-base">Consultar por access token</CardTitle>
+                  <CardDescription>
+                    Collector ID, sucursales y todos los QRs de una cuenta, con sus manchas para descargar.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          </Link>
+        </div>
+
         <ErrorAlert error={error} />
 
         <Card>
