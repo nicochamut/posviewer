@@ -309,6 +309,8 @@ export function StationQrManager({ station }: StationQrManagerProps) {
 
       // Guardar la respuesta y mostrar el popup
       setStoreResponse(data);
+      // Los QRs que se creen después van a esta sucursal
+      setCreateFormData((prev) => ({ ...prev, store_id: String(data.id) }));
       setShowStoreForm(false);
       setStoreResponseDialogOpen(true);
 

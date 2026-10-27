@@ -6,7 +6,8 @@ import type { CreateFormData } from "@/types"
 const initialCreateFormData: CreateFormData = {
   name: "",
   category: 473000,
-  operating_mode: "",
+  // Modo por defecto del instructivo; si la estación ya tiene QRs se copia el de ellos
+  operating_mode: "unattended",
   store_id: "",
   external_store_id: "",
   external_id: "",
